@@ -24,6 +24,11 @@
     __VA_ARGS__();                                                             \
     break;                                                                     \
   }                                                                            \
+  case at::ScalarType::Float: {                                                \
+    using scalar_t = float;                                                    \
+    __VA_ARGS__();                                                             \
+    break;                                                                     \
+  }                                                                            \
   default:                                                                     \
     AT_ERROR(#NAME, " not implemented for '", toString(TYPE), "'");            \
   }
@@ -43,7 +48,7 @@ std::vector<at::Tensor> linear_bias_wgrad(at::Tensor input, at::Tensor d_output,
   int64_t in_features = input.size(1);
   int64_t out_features = d_output.size(1);
 
-  TORCH_CHECK(input.dtype() == torch::kFloat16 || input.dtype() == torch::kBFloat16);
+  // TORCH_CHECK(input.dtype() == torch::kFloat16 || input.dtype() == torch::kBFloat16);
   TORCH_CHECK(input.dtype() == d_output.dtype());
   TORCH_CHECK(input.is_cuda());
   TORCH_CHECK(d_output.is_cuda());

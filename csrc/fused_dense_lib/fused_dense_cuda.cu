@@ -90,6 +90,43 @@ cublasStatus_t gemm_bias(
       CUDA_R_32F,
       CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
+// BF16 Tensor core wrapper around cublas GEMMEx
+cublasStatus_t gemm_bias(
+    cublasHandle_t handle,
+    cublasOperation_t transa,
+    cublasOperation_t transb,
+    int64_t m,
+    int64_t n,
+    int64_t k,
+    const float* alpha,
+    const float* A,
+    int64_t lda,
+    const float* B,
+    int64_t ldb,
+    const float* beta,
+    float* C,
+    int64_t ldc) {
+  return cublasGemmEx(
+      handle,
+      transa,
+      transb,
+      m,
+      n,
+      k,
+      alpha,
+      A,
+      CUDA_R_32F,
+      lda,
+      B,
+      CUDA_R_32F,
+      ldb,
+      beta,
+      C,
+      CUDA_R_32F,
+      ldc,
+      CUDA_R_32F,
+      CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+}
 
 #if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 11600
 
@@ -114,11 +151,11 @@ int gemm_bias_act_lt(
     void *lt_workspace,
     size_t workspaceSize
     ) {
-  static_assert(std::is_same<Dtype, at::Half>::value || std::is_same<Dtype, at::BFloat16>::value,
-                "gemm_bias_act_lt only supports fp16 and bf16");
+  // static_assert(std::is_same<Dtype, at::Half>::value || std::is_same<Dtype, at::BFloat16>::value,
+  //               "gemm_bias_act_lt only supports fp16 and bf16");
   bool save_pre_act = pre_act != nullptr;
   float beta = 0.0;
-  cudaDataType_t abcType = std::is_same<Dtype, at::Half>::value ? CUDA_R_16F : CUDA_R_16BF;
+  cudaDataType_t abcType = std::is_same<Dtype, at::Half>::value ? CUDA_R_16F : (std::is_same<Dtype, at::BFloat16>::value ? CUDA_R_16BF : CUDA_R_32F);
 
   cublasLtHandle_t ltHandle =
     reinterpret_cast<cublasLtHandle_t>(at::cuda::getCurrentCUDABlasHandle());
@@ -289,10 +326,10 @@ int gemm_bgradb_lt(
     Dtype* bgrad,
     void *lt_workspace,
     size_t workspaceSize) {
-  static_assert(std::is_same<Dtype, at::Half>::value || std::is_same<Dtype, at::BFloat16>::value,
-                "gemm_bgradb_lt only supports fp16 and bf16");
+  // static_assert(std::is_same<Dtype, at::Half>::value || std::is_same<Dtype, at::BFloat16>::value,
+  //               "gemm_bgradb_lt only supports fp16 and bf16");
   float beta = 0.0;
-  cudaDataType_t abcType = std::is_same<Dtype, at::Half>::value ? CUDA_R_16F : CUDA_R_16BF;
+  cudaDataType_t abcType = std::is_same<Dtype, at::Half>::value ? CUDA_R_16F : (std::is_same<Dtype, at::BFloat16>::value ? CUDA_R_16BF : CUDA_R_32F);
 
   cublasLtHandle_t ltHandle =
     reinterpret_cast<cublasLtHandle_t>(at::cuda::getCurrentCUDABlasHandle());
@@ -442,10 +479,10 @@ int gemm_dact_bgradb_lt(
     int heuristic,
     void *lt_workspace,
     size_t workspaceSize) {
-  static_assert(std::is_same<Dtype, at::Half>::value || std::is_same<Dtype, at::BFloat16>::value,
-                "gemm_dact_bgradb_lt only supports fp16 and bf16");
+  // static_assert(std::is_same<Dtype, at::Half>::value || std::is_same<Dtype, at::BFloat16>::value,
+  //               "gemm_dact_bgradb_lt only supports fp16 and bf16");
   float beta = 0.0;
-  cudaDataType_t abcType = std::is_same<Dtype, at::Half>::value ? CUDA_R_16F : CUDA_R_16BF;
+  cudaDataType_t abcType = std::is_same<Dtype, at::Half>::value ? CUDA_R_16F : (std::is_same<Dtype, at::BFloat16>::value ? CUDA_R_16BF : CUDA_R_32F);
 
   cublasLtHandle_t ltHandle =
     reinterpret_cast<cublasLtHandle_t>(at::cuda::getCurrentCUDABlasHandle());
@@ -709,9 +746,12 @@ int bias_act_linear_dgrad_bgrad_cuda(const T *weight, const T *d_output, const v
 
 template int linear_bias_wgrad_cuda<at::Half>(const at::Half *input, const at::Half *d_output, int64_t in_features, int64_t batch_size, int64_t out_features, at::Half *d_weight, at::Half *d_bias, void *lt_workspace, size_t workspaceSize);
 template int linear_bias_wgrad_cuda<at::BFloat16>(const at::BFloat16 *input, const at::BFloat16 *d_output, int64_t in_features, int64_t batch_size, int64_t out_features, at::BFloat16 *d_weight, at::BFloat16 *d_bias, void *lt_workspace, size_t workspaceSize);
+template int linear_bias_wgrad_cuda<float>(const float *input, const float *d_output, int64_t in_features, int64_t batch_size, int64_t out_features, float *d_weight, float *d_bias, void *lt_workspace, size_t workspaceSize);
 
 template int linear_act_forward_cuda<at::Half>(const at::Half *input, const at::Half *weight, const at::Half *bias, int64_t in_features, int64_t batch_size, int64_t out_features, bool is_gelu, int heuristic, at::Half *output, void *pre_act, void *lt_workspace, size_t workspaceSize);
 template int linear_act_forward_cuda<at::BFloat16>(const at::BFloat16 *input, const at::BFloat16 *weight, const at::BFloat16 *bias, int64_t in_features, int64_t batch_size, int64_t out_features, bool is_gelu, int heuristic, at::BFloat16 *output, void *pre_act, void *lt_workspace, size_t workspaceSize);
+template int linear_act_forward_cuda<float>(const float *input, const float *weight, const float *bias, int64_t in_features, int64_t batch_size, int64_t out_features, bool is_gelu, int heuristic, float *output, void *pre_act, void *lt_workspace, size_t workspaceSize);
 
 template int bias_act_linear_dgrad_bgrad_cuda<at::Half>(const at::Half *weight, const at::Half *d_output, const void *pre_act, int64_t in_features, int64_t batch_size, int64_t out_features, bool is_gelu, int heuristic, at::Half *d_input, at::Half *d_bias, void *lt_workspace, size_t workspaceSize);
 template int bias_act_linear_dgrad_bgrad_cuda<at::BFloat16>(const at::BFloat16 *weight, const at::BFloat16 *d_output, const void *pre_act, int64_t in_features, int64_t batch_size, int64_t out_features, bool is_gelu, int heuristic, at::BFloat16 *d_input, at::BFloat16 *d_bias, void *lt_workspace, size_t workspaceSize);
+template int bias_act_linear_dgrad_bgrad_cuda<float>(const float *weight, const float *d_output, const void *pre_act, int64_t in_features, int64_t batch_size, int64_t out_features, bool is_gelu, int heuristic, float *d_input, float *d_bias, void *lt_workspace, size_t workspaceSize);
